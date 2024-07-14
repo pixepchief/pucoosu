@@ -34,20 +34,24 @@ wss.on('connection', (ws) => {
     });
 });
 
-function handleJoin(ws, { room, name }) {
+function handleJoin(ws, { room, name, avatar, color }) {
     if (!rooms[room]) {
         rooms[room] = { clients: new Map(), messages: [] };
     }
-    rooms[room].clients.set(ws, { name, x: 0, y: 0 });
+
+    rooms[room].clients.set(ws, { name, avatar, color, x: 0, y: 0 });
 
     ws.room = room;
     ws.name = name;
 
-    const players = Array.from(rooms[room].clients.values()).map(({ name }) => name);
+    const players = Array.from(rooms[room].clients.values()).map(({ name, avatar, color }) => ({ name, avatar, color }));
 
     rooms[room].clients.forEach((client, clientWs) => {
         if (clientWs.readyState === WebSocket.OPEN) {
             clientWs.send(JSON.stringify({ action: 'updatePlayers', payload: players }));
+            if (clientWs !== ws) {
+                clientWs.send(JSON.stringify({ action: 'chat', payload: { date: new Date().toLocaleString(), name: 'System', message: `${name} has joined the lobby` } }));
+            }
         }
     });
 
@@ -58,6 +62,7 @@ function handleJoin(ws, { room, name }) {
     });
 }
 
+
 function handleMove(ws, { x, y }) {
     const room = rooms[ws.room].clients;
     if (room) {
@@ -67,7 +72,7 @@ function handleMove(ws, { x, y }) {
 
         const payload = JSON.stringify({
             action: 'move',
-            payload: { name: ws.name, x, y }
+            payload: { name: ws.name, x, y, avatar: player.avatar, color: player.color } 
         });
 
         room.forEach((client, clientWs) => {
@@ -79,8 +84,9 @@ function handleMove(ws, { x, y }) {
 }
 
 function handleChat(ws, { room, name, message }) {
+    const color = rooms[room].clients.get(ws).color;
     const date = new Date().toLocaleString();
-    const chatMessage = { date, name, message };
+    const chatMessage = { date, name, message, color };
 
     if (rooms[room]) {
         rooms[room].messages.push(chatMessage);
