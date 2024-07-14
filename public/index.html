@@ -38,7 +38,7 @@
             name = document.getElementById('name-input').value;
 
             if (room && name) {
-                ws = new WebSocket(`ws://${window.location.host}`);
+                ws = new WebSocket(`wss://${window.location.host}`);
                 ws.onopen = () => {
                     ws.send(JSON.stringify({ action: 'join', payload: { room, name } }));
                     document.getElementById('join-form').style.display = 'none';
