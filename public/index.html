@@ -61,7 +61,7 @@
             }
 
             if (room && name) {
-                ws = new WebSocket(`ws://${window.location.host}`);
+                ws = new WebSocket(`wss://${window.location.host}`);
                 ws.onopen = () => {
                     ws.send(JSON.stringify({ action: 'join', payload: { room, name, avatar: avatarUrl, color: selectedColor } }));
                     document.getElementById('join-form').style.display = 'none';
@@ -94,13 +94,23 @@
                     ws.send(JSON.stringify({ action: 'move', payload: data }));
                 });
 
+                document.getElementById('message-input').addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        sendMessage();
+                    }
+                });
+
                 document.getElementById('send-button').addEventListener('click', () => {
+                    sendMessage();
+                });
+
+                function sendMessage() {
                     const message = document.getElementById('message-input').value;
                     if (message) {
                         ws.send(JSON.stringify({ action: 'chat', payload: { room, name, message } }));
                         document.getElementById('message-input').value = '';
                     }
-                });
+                }
             }
         });
 
