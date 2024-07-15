@@ -2,12 +2,19 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
+const upload = multer({ dest: 'uploads/' });
 const rooms = {};
+
+app.post('/upload', upload.single('avatar'), (req, res) => {
+    res.json({ url: `/uploads/${req.file.filename}` });
+});
 
 wss.on('connection', (ws) => {
     ws.on('message', (message) => {
@@ -43,6 +50,7 @@ function handleJoin(ws, { room, name, avatar, color }) {
 
     ws.room = room;
     ws.name = name;
+    ws.avatar = avatar;
 
     const players = Array.from(rooms[room].clients.values()).map(({ name, avatar, color }) => ({ name, avatar, color }));
 
@@ -50,7 +58,8 @@ function handleJoin(ws, { room, name, avatar, color }) {
         if (clientWs.readyState === WebSocket.OPEN) {
             clientWs.send(JSON.stringify({ action: 'updatePlayers', payload: players }));
             if (clientWs !== ws) {
-                clientWs.send(JSON.stringify({ action: 'chat', payload: { date: new Date().toLocaleString(), name: 'System', message: `${name} has joined the lobby` } }));
+                const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                clientWs.send(JSON.stringify({ action: 'chat', payload: { date: timeString, name: 'System', message: `<b>${name} has joined the lobby</b>` } }));
             }
         }
     });
@@ -61,7 +70,6 @@ function handleJoin(ws, { room, name, avatar, color }) {
         }
     });
 }
-
 
 function handleMove(ws, { x, y }) {
     const room = rooms[ws.room].clients;
@@ -109,7 +117,16 @@ function handleDisconnect(ws) {
     if (room) {
         room.delete(ws);
 
-        const players = Array.from(room.values()).map(({ name }) => name);
+        if (ws.avatar) {
+            const avatarPath = path.join(__dirname, 'uploads', path.basename(ws.avatar));
+            fs.unlink(avatarPath, (err) => {
+                if (err) {
+                    console.error('Failed to delete avatar:', err);
+                }
+            });
+        }
+
+        const players = Array.from(room.values()).map(({ name, avatar, color }) => ({ name, avatar, color }));
         room.forEach((client, clientWs) => {
             if (clientWs.readyState === WebSocket.OPEN) {
                 clientWs.send(JSON.stringify({ action: 'updatePlayers', payload: players }));
@@ -123,6 +140,7 @@ function handleDisconnect(ws) {
     }
 }
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 server.listen(3000, () => {
